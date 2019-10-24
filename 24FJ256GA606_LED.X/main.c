@@ -12,6 +12,9 @@
  *
  * Notes: 
  *  Yellow LED on GPIO pin RB4. ON = 1, OFF = 0.
+ * 
+ *  To see the linker script file used add '--save-gld' to 
+ *  the additional options of the xc16-ld properties.
  *
  *                                                   PIC24FJ256GA606
  *             +----------+               +----------+               +----------+               +----------+
@@ -75,7 +78,6 @@
 
 #include <xc.h>
 #include "init.h"
-#include "pwm.h"
     
 /* define map input pin numbers */ 
 enum 
@@ -278,15 +280,15 @@ void PIC_init(void)
     /* map all outputs                        Fixed  */ 
     _RP0R   =   RPO_NONE;       /*  pin RB0          */ 
     _RP1R   =   RPO_NONE;       /*  pin RB1          */ 
-    _RP2R   =   RPO_OC1;        /*  pin RD8          */ 
+    _RP2R   =   RPO_NONE;       /*  pin RD8          */ 
     _RP3R   =   RPO_NONE;       /*  pin RD10         */ 
     _RP4R   =   RPO_NONE;       /*  pin RD9          */ 
-    _RP6R   =   RPO_OCM7;       /*  pin RB6          */ 
-    _RP7R   =   RPO_OCM5;       /*  pin RB7          */ 
-    _RP8R   =   RPO_OCM4;       /*  pin RB8          */ 
-    _RP9R   =   RPO_OC2;        /*  pin RB9          */ 
+    _RP6R   =   RPO_NONE;       /*  pin RB6          */ 
+    _RP7R   =   RPO_NONE;       /*  pin RB7          */ 
+    _RP8R   =   RPO_NONE;       /*  pin RB8          */ 
+    _RP9R   =   RPO_NONE;       /*  pin RB9          */ 
     _RP10R  =   RPO_NONE;       /*  pin RF4          */ 
-    _RP11R  =   RPO_OCM6;       /*  pin RD0          */ 
+    _RP11R  =   RPO_NONE;       /*  pin RD0          */ 
     _RP12R  =   RPO_NONE;       /*  pin RD11         */ 
     _RP13R  =   RPO_NONE;       /*  pin RB2          */ 
     _RP14R  =   RPO_NONE;       /*  pin RB14         */ 
@@ -336,15 +338,12 @@ void delay_ms( unsigned long delay )
 int main() 
 {
     PIC_init();
-    PWM_Init();
     
     YELLOW_LED_DIR = GPIO_OUT;
 
     /* loop forever, main never exits */
     for(;;)
     {
-        PWM_Test();
-        
         if (YELLOW_LED == LED_OFF)
         {
             YELLOW_LED = LED_ON;
