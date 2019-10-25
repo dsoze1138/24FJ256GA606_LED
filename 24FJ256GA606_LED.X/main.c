@@ -77,6 +77,7 @@
 #pragma config ALTVREF = ALTREFEN       /* Alternate Voltage Reference Location Enable bit (VREF+ and CVREF+ on RA10, VREF- and CVREF- on RA9) */
 
 #include <xc.h>
+#include <stdint.h>
 #include "init.h"
     
 /* define map input pin numbers */ 
@@ -324,7 +325,55 @@ void delay_ms( unsigned long delay )
         asm("repeat  %0\n clrwdt\n":: "r" (FCYC/1000L-7L));
     } while(delay--);
 }
+/*
+ * 
+ */
+uint32_t InstWord0;
+uint32_t InstWord2;
+uint32_t WriteAddress;
+/*
+ * 
+ */
+void Test_ProgramSpaceWrite(void)
+{
+    uint16_t Index;
 
+    //Set up pointer to the first memory location in page to be erased
+    NVMADRU = WriteAddress >> 16;       // Initialize PM Page Boundary SFR
+    NVMADR =  WriteAddress & 0xFFFF;    // Initialize lower word of address
+
+    //Set up NVMCON for page erase
+    NVMCON = 0x4003;                    // Initialize NVMCON to erase page
+    __asm("DISI #5");                   // Block interrupts with priority <7 for next 5 instructions
+    __builtin_write_NVM();              // XC16 function to perform unlock sequence and set WR
+    while (NVMCONbits.WR == 1);
+    
+    //Set up NVMCON for page programming
+    NVMCON = 0x4002;                    // Initialize NVMCON to write page
+    TBLPAG = 0xFA;                      // Point TBLPAG to the write latches
+
+    //Set up pointer to the first memory location to be written
+    NVMADRU = WriteAddress >> 16;       // Initialize PM Page Boundary SFR
+    NVMADR =  WriteAddress & 0xFFFF;    // Initialize lower word of address
+
+#define STEP (4)
+    //Perform TBLWT instructions to write latches
+    for(Index = 0; Index < (STEP*64); Index += STEP)
+    {
+        __builtin_tblwtl(Index, InstWord0);         // Write word 1 to address low word
+        __builtin_tblwth(Index, InstWord0 >> 16);   // Write word 1 to upper byte
+        __builtin_tblwtl(Index+2, InstWord2);       // Write word 2 to address low word
+        __builtin_tblwth(Index+2, InstWord2 >> 16); // Write word 2 to upper byte
+        InstWord0++; // = (InstWord0 << 1) | ((InstWord0 >> 23) & 0x01);
+        InstWord2++; // = (InstWord2 << 1) | ((InstWord2 >> 23) & 0x01);
+    }
+    __asm("DISI #5");                   // Block interrupts with priority <7 for next 5 instructions
+    __builtin_write_NVM();              // XC16 function to perform unlock sequence and set WR
+    while (NVMCONbits.WR == 1);
+}
+/*
+ * Define macros to access GPIOs
+ */
 #define GPIO_OUT 0
 #define GPIO_IN  1
 
@@ -333,14 +382,36 @@ void delay_ms( unsigned long delay )
 
 #define YELLOW_LED_DIR   TRISBbits.TRISB4
 #define YELLOW_LED       LATBbits.LATB4
-
-
+/* 
+ * Main Application
+ */
 int main() 
 {
     PIC_init();
     
     YELLOW_LED_DIR = GPIO_OUT;
+    YELLOW_LED = LED_ON;
 
+    delay_ms(3000);
+    
+    WriteAddress = 0x800;
+    TBLPAG = (WriteAddress >> 16) & 0xFF;
+    if ((   (uint32_t)(__builtin_tblrdl((uint16_t)(WriteAddress+0)))
+          | (uint32_t)(__builtin_tblrdh((uint16_t)(WriteAddress+0))) << 16) == 0xFFFFFF)
+    {
+        InstWord0 = 0x01;
+        InstWord2 = 0x10;
+    }
+    else
+    {
+        InstWord0 = (uint32_t)(__builtin_tblrdl((uint16_t)(WriteAddress+4)))
+                  | (uint32_t)(__builtin_tblrdh((uint16_t)(WriteAddress+4))) << 16;
+        InstWord2 = (uint32_t)(__builtin_tblrdl((uint16_t)(WriteAddress+6)))
+                  | (uint32_t)(__builtin_tblrdh((uint16_t)(WriteAddress+6))) << 16;
+    }
+
+    Test_ProgramSpaceWrite();
+    
     /* loop forever, main never exits */
     for(;;)
     {
@@ -352,7 +423,7 @@ int main()
         {
             YELLOW_LED = LED_OFF;
         }
-        delay_ms(500);    
+        delay_ms(250);    
     }
     return 0; 
 }   
